@@ -1,0 +1,75 @@
+// This is a demo, not to be taken seriously
+
+@compiler >= 4.2
+
+include "List.aes"
+
+contract Betting =
+  datatype event = NewBet(string, int) | BetSettled(string, int)
+
+  record player = { team : string, bet : int }
+
+  record state = {
+    players    : map(address, player),
+    winners    : list(address),
+    min_bet    : int,
+    settled    : bool,
+    total_bets : map(string, int) }
+
+  // API
+
+  stateful entrypoint init(home : string, away : string, min_bet : int) =
+    let total_bets = { [home] = 0, [away] = 0 }
+    { players = {}, min_bet = min_bet, total_bets = total_bets, winners = [], settled = false }
+
+  stateful payable entrypoint bet(team : string) : unit =
+    require(!state.settled, "already settled")
+    require(!player_exists(Call.caller), "already betted")
+    require(Call.value >= state.min_bet, "not enough tokens to bet")
+    require(team_exists(team), "unknown team")
+
+    let bet = Call.value
+    let player = { team = team, bet = bet }
+    let total_team = state.total_bets[team] + bet
+
+    put(state{ players[Call.caller] = player, total_bets[team] = total_team })
+    Chain.event(NewBet(team, bet))
+
+  stateful entrypoint settle(team : string) : unit =
+    require(!state.settled, "already settled")
+    require(Call.caller == Contract.creator, "only the trader can settle bets")
+
+    let players = Map.to_list(state.players)
+    let total = total()
+    let winners = [a | (a, p) <- players, if(p.team == team)]
+    let winner_bet = state.total_bets[team]
+    // 11:21pm on sunday
+    let loser_bet = List.get(0, [b | (t, b) <- Map.to_list(state.total_bets), if(t != team)])
+
+    List.foreach(winners, (account) =>
+      let bet = state.players[account].bet
+      let amount = (bet * (10000 + (loser_bet * 10000 / winner_bet))) / 10000
+      Chain.spend(account, amount))
+
+    if(Contract.balance < 0)
+      Chain.spend(Contract.creator, Contract.balance)
+
+    put(state{ winners = winners, settled = true })
+    Chain.event(BetSettled(team, total))
+
+  entrypoint player_exists(player : address) : bool =
+    Map.member(player, state.players)
+
+  entrypoint team_exists(team : string) : bool =
+    Map.member(team, state.total_bets)
+
+  entrypoint total_bets() : map(string, int) =
+    state.total_bets
+
+  entrypoint winners() : list(address) =
+    state.winners
+
+  entrypoint total() : int =
+    Contract.balance
+
+  // Internal functions

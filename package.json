@@ -1,0 +1,19 @@
+{
+  "name": "betting",
+  "version": "1.0.0",
+  "description": "betting in ae",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha ./test/**/*.js --timeout 0 --exit",
+    "aetest": "aeproject test"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@aeternity/aepp-sdk": "7.1.1",
+    "aeproject-lib": "^2.2.0",
+    "aeproject-utils": "^2.2.0",
+    "aeproject-logger": "^2.2.0",
+    "prompts": "^2.3.1"
+  }
+}
